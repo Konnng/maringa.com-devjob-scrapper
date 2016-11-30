@@ -1,3 +1,5 @@
 #!/bin/bash
 
-env TZ='America/Sao_Paulo' node index.js
+DIR=$(dirname "$0")
+
+env TZ='America/Sao_Paulo' node $DIR/index.js
