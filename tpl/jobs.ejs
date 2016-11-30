@@ -18,7 +18,7 @@
         <h4>taken from maringa.com/empregos</h4>
       </div>
 	  <div class="clearfix">
-		  <div class="pull-right">Updated at: <%= moment(updated_at).format('D/M/YYYY H:m:s'); %></div>
+		  <div class="pull-right">Updated at: <%= moment(updated_at).format('DD/MM/YYYY HH:mm:ss'); %></div>
 	  </div>
       <table class="table table-striped table-condensed">
         <thead>
@@ -33,7 +33,7 @@
             <tr>
             <td><a href="<%= job.url %>" target="_blank"><%= job.title %></a></td>
             <td><%= job.company %></td>
-            <td><%= moment(job.date).format('D/M/YYYY'); %></td>
+            <td><%= moment(job.date).format('DD/MM/YYYY'); %></td>
             </tr>
             <% }); %>
           </tbody>
