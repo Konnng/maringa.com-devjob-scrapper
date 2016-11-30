@@ -16,7 +16,12 @@ const sleep = require('system-sleep');
 const moment = require('moment');
 // /REQUIRES --------------------------------------------------------------------------------------
 
-const db = low('db.json', { storage: lowDbFileAsync, writeOnChange: true });
+const db_file = path.join(__dirname, 'data/db.json');
+if (!fs.existsSync(path.dirname(db_file)) && !fs.mkdirsSync(path.dirname(db_file))) {
+  throw new Error('Error creating data dir.');
+}
+const db = low(db_file, { storage: lowDbFileAsync, writeOnChange: true });
+
 const scrapperUrlBase = 'http://www.maringa.com/empregos/index.php';
 const keywords = [
   'desenvolvedor',
@@ -28,7 +33,7 @@ const keywords = [
 ];
 const deferred = Q.defer();
 
-db.defaults({ jobs: [] }).value();
+db.defaults({ jobs: [], settings: {} }).value();
 
 let keywordsProcessed = 0;
 
@@ -40,17 +45,17 @@ keywords.forEach((item) => {
   console.log('Processing: ', item);
 
   http.get(url, (response) => {
-    let body_chunks = [];
+    let bodyChunks = [];
 
     response.on('error', (err) => {
       console.log(err);
       console.log('-'.repeat(100));
     });
     response.on('data', (data) => {
-      body_chunks.push(data);
+      bodyChunks.push(data);
     });
     response.on('end', () => {
-      let body = iconv.decode(Buffer.concat(body_chunks), 'latin1').toString();
+      let body = iconv.decode(Buffer.concat(bodyChunks), 'latin1').toString();
       let $ = cheerio.load(body);
       let jobs = $('#listaVagas tbody tr').length > 0 ? $('#listaVagas tbody tr') : $('#listaVagas tr').slice(1);
 
@@ -113,17 +118,25 @@ keywords.forEach((item) => {
 Q.when(deferred.promise).then(() => {
   console.log('generating html...');
 
-  let jobs = db.get('jobs').filter({ is_filled: false }).sortBy('date').reverse().value() || [];
-  let html = fs.readFileSync(path.join(__dirname, 'tpl/jobs.ejs'), 'utf8');
-  let result = tpl.render(html, { jobs, moment: moment });
-  let outputFile = path.join(__dirname, 'out/jobs.html');
+  try {
+    db.set('settings.updated_at', Date.now()).value();
 
-  if (!fs.existsSync(path.dirname(outputFile)) && !fs.mkdirsSync(path.dirname(outputFile)))
-    throw 'Error creating output directory.';
+    let outputFile = path.join(__dirname, 'out/jobs.html');
+    let html = fs.readFileSync(path.join(__dirname, 'tpl/jobs.ejs'), 'utf8');
 
-  fs.writeFileSync(outputFile, result);
+    let jobs = db.get('jobs').filter({ is_filled: false }).sortBy('date').reverse().value() || [];
+    let result = tpl.render(html, { jobs, moment: moment, updated_at: db.get('settings.updated_at').value() || Date.now() });
 
-  console.log('Done ', outputFile);
+    if (!fs.existsSync(path.dirname(outputFile)) && !fs.mkdirsSync(path.dirname(outputFile))) {
+      throw new Error('Error creating output directory.');
+    }
+
+    fs.writeFileSync(outputFile, result);
+
+    console.log('Done ', outputFile);
+  } catch (err) {
+    console.error(err);
+  }
 }, (err) => {
   console.error(err);
   process.exit(1);
