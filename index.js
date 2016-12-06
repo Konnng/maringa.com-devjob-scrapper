@@ -37,7 +37,7 @@ db.defaults({ jobs: [], settings: {} }).value();
 
 let keywordsProcessed = 0;
 
-keywords.forEach((item) => {
+keywords.forEach((item, index) => {
   let url = `${scrapperUrlBase}?busca=${encodeURIComponent(item)}&area=&buscar=Buscar`;
 
   sleep(1000);
@@ -106,7 +106,7 @@ keywords.forEach((item) => {
         db.get('jobs').push(row).value();
       });
 
-      keywordsProcessed++;
+      keywordsProcessed = index + 1;
 
       if (keywordsProcessed === keywords.length) {
         deferred.resolve();
@@ -125,7 +125,7 @@ Q.when(deferred.promise).then(() => {
     let html = fs.readFileSync(path.join(__dirname, 'tpl/jobs.ejs'), 'utf8');
 
     let jobs = db.get('jobs').filter({ is_filled: false }).sortBy('date').reverse().value() || [];
-    let result = tpl.render(html, { jobs, moment: moment, updated_at: db.get('settings.updated_at').value() || Date.now() });
+    let result = tpl.render(html, { jobs, moment, updated_at: db.get('settings.updated_at').value() || Date.now() });
 
     if (!fs.existsSync(path.dirname(outputFile)) && !fs.mkdirsSync(path.dirname(outputFile))) {
       throw new Error('Error creating output directory.');
