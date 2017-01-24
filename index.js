@@ -142,11 +142,11 @@ Q.when(deferred.promise).then(() => {
     console.log('Cheking for new job entries to send to Slack...')
     let botJobs = db.get('jobs').filter({ bot_processed: false }).filter({ is_filled: false }).filter(row => row.date_processed >= cuttingTime).sortBy('date').reverse().value()
     sleep(1000)
-    if (botJobs.length) {
+    if (process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA && botJobs.length) {
       console.log('Found ' + botJobs.length +  ' entries to be posted on slack.');
 
       let slack = new Slack();
-      slack.setWebhook('https://hooks.slack.com/services/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');
+      slack.setWebhook(process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA);
 
       botJobs.forEach((item, index) => {
         console.log('Processing item ' + (index + 1) + '...');
@@ -172,8 +172,10 @@ Q.when(deferred.promise).then(() => {
         });
         sleep(1000);
       });
+    } else if (!process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA) {
+      console.error('Enviroment variable "LABS_SLACK_WEBHOOK_URL_DEVPARANA" is not defined. Aborting slack...');
     } else {
-      console.log('No new job opening found to send to slack.')
+      console.error('No new job opening found to send to slack.');
     }
 //  /INTEGRATION WITH DEVPARANA SLACK -------------------------------------------------------------------------------------------
   } catch (err) {
