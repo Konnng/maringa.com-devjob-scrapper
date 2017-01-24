@@ -150,6 +150,7 @@ Q.when(deferred.promise).then(() => {
 
       botJobs.forEach((item, index) => {
         console.log('Processing item ' + (index + 1) + '...');
+
         slack.webhook({
           attachments: [
             {
@@ -167,7 +168,10 @@ Q.when(deferred.promise).then(() => {
             process.exit(1);
           }
           if (response.statusCode === 200) {
+            console.log('Done posting item ' + (index + 1));
             db.get('jobs').find({ id: item.id }).assign({ bot_processed: true }).value();
+          } else {
+            console.error('Error processing item ' + (index + 1) + ': ', response.statusCode, response.statusMessage);
           }
         });
         sleep(1000);
