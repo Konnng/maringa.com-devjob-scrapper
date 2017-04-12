@@ -1,7 +1,3 @@
-/**
- *
- */
-
 // REQUIRES ---------------------------------------------------------------------------------------
 const tpl = require('ejs');
 const low = require('lowdb');
@@ -32,7 +28,13 @@ const keywords = [
   'frontend',
   'front-end',
 ];
+const blacklist = [
+  'torno',
+  'cnc',
+  /manuten[\xC7\xE7][\xC3\xE3]o/img
+];
 const deferred = Q.defer();
+const deferredSlack = Q.defer();
 
 db.defaults({ jobs: [], settings: {} }).value();
 
@@ -40,17 +42,18 @@ let keywordsProcessed = 0;
 
 keywords.forEach((item, index) => {
   let url = `${scrapperUrlBase}?busca=${encodeURIComponent(item)}&area=&buscar=Buscar`;
+  let foundJobs = []
 
   sleep(1000);
 
-  console.log('Processing: ', item);
+  _log('Processing: ', item);
 
   http.get(url, (response) => {
     let bodyChunks = [];
 
     response.on('error', (err) => {
-      console.log(err);
-      console.log('-'.repeat(100));
+      _log(err);
+      _log('-'.repeat(100));
     });
     response.on('data', (data) => {
       bodyChunks.push(data);
@@ -104,15 +107,23 @@ keywords.forEach((item, index) => {
           return;
         }
 
-        row = { id, title, company, date, date_processed, is_filled: isFilled, keyword, bot_processed: false, url: `http://www.maringa.com/empregos/vaga/${id}/` };
+        foundJobs.push({ id, title, company, date, date_processed, is_filled: isFilled, keyword, bot_processed: false, url: `http://www.maringa.com/empregos/vaga/${id}/` });
+      });
 
-        db.get('jobs').push(row).value();
+      foundJobs.filter(job => {
+        return blacklist.filter(function (word) {
+          let regex = word.constructor !== RegExp ? new RegExp(`\\b${word}\\b`, 'igm') : word
+
+          return regex.test(job.title);
+        }).length === 0;
+      }).forEach(job => {
+        db.get('jobs').push(job).value();
       });
 
       keywordsProcessed = index + 1;
 
       if (keywordsProcessed === keywords.length) {
-        deferred.resolve();
+        setTimeout(function () { deferred.resolve(); }, 1000);
       }
     });
   });
@@ -121,7 +132,7 @@ keywords.forEach((item, index) => {
 Q.when(deferred.promise).then(() => {
   let cuttingTime = 1484186400245
 
-  console.log('generating html...');
+  _log('generating html...');
 
   try {
     db.set('settings.updated_at', Date.now()).value();
@@ -138,18 +149,20 @@ Q.when(deferred.promise).then(() => {
 
     fs.writeFileSync(outputFile, result);
 //  INTEGRATION WITH DEVPARANA SLACK --------------------------------------------------------------------------------------------
-    console.log('Done generating HTML file: ', outputFile);
-    console.log('Cheking for new job entries to send to Slack...')
+    _log('Done generating HTML file: ', outputFile);
+    _log('Cheking for new job entries to send to Slack...')
     let botJobs = db.get('jobs').filter({ bot_processed: false }).filter({ is_filled: false }).filter(row => row.date_processed >= cuttingTime).sortBy('date').reverse().value()
     sleep(1000)
+
     if (process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA && botJobs.length) {
-      console.log('Found ' + botJobs.length +  ' entries to be posted on slack.');
+      let deferredSlack =
+      _log('Found ' + botJobs.length +  ' entries to be posted on slack.');
 
       let slack = new Slack();
       slack.setWebhook(process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA);
 
       botJobs.forEach((item, index) => {
-        console.log('Processing item ' + (index + 1) + '...');
+        _log('Processing item ' + (index + 1) + '...');
 
         slack.webhook({
           attachments: [
@@ -163,29 +176,44 @@ Q.when(deferred.promise).then(() => {
           text: 'Vaga de trabalho encontrada. Confira! \n\n' + item.url,
         }, function(err, response) {
           if (err) {
-            console.error(err);
-            console.error('-'.repeat(100));
+            _log('ERROR: ', err);
+            _log('ERROR: ', '-'.repeat(100));
             process.exit(1);
           }
           if (response.statusCode === 200) {
-            console.log('Done posting item ' + (index + 1));
+            _log('Done posting item ' + (index + 1));
             db.get('jobs').find({ id: item.id }).assign({ bot_processed: true }).value();
           } else {
-            console.error('Error processing item ' + (index + 1) + ': ', response.statusCode, response.statusMessage);
+            _log('ERROR: ', 'Error processing item ' + (index + 1) + ': ', response.statusCode, response.statusMessage);
+          }
+
+          if (index + 1 === botJobs.length) {
+            deferredSlack.resolve();
           }
         });
-        sleep(1000);
+        sleep(300);
       });
     } else if (!process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA) {
-      console.error('Enviroment variable "LABS_SLACK_WEBHOOK_URL_DEVPARANA" is not defined. Aborting slack...');
+      _log('ERROR: Enviroment variable "$LABS_SLACK_WEBHOOK_URL_DEVPARANA" is not defined. Aborting slack...');
+      deferredSlack.resolve();
     } else {
-      console.error('No new job opening found to send to slack.');
+      _log('No new job opening found to send to slack.');
+      deferredSlack.resolve();
     }
 //  /INTEGRATION WITH DEVPARANA SLACK -------------------------------------------------------------------------------------------
+    Q.when(deferredSlack.promise).then(() => {
+      _log('DONE');
+    });
   } catch (err) {
-    console.error(err);
+    _log('ERROR: ', err);
   }
+  _log('-'.repeat(100));
 }, (err) => {
-  console.error(err);
+  _log('ERROR: ', err);
+  _log('-'.repeat(100));
   process.exit(1);
 });
+
+function _log() {
+  console.log.apply(console, [].concat([`[${moment().format('DD/MM/YYYY HH:mm:ss')}] =>`], Array.from(arguments) || []))
+}
