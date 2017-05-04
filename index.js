@@ -31,7 +31,8 @@ const keywords = [
 const blacklist = [
   'torno',
   'cnc',
-  /manuten[\xC7\xE7][\xC3\xE3]o/img
+  'ppcp',
+  /manuten[\xC7\xE7][\xC3\xE3]o/img,
 ];
 const deferred = Q.defer();
 const deferredSlack = Q.defer();
@@ -155,14 +156,13 @@ Q.when(deferred.promise).then(() => {
     sleep(1000)
 
     if (process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA && botJobs.length) {
-      let deferredSlack =
-      _log('Found ' + botJobs.length +  ' entries to be posted on slack.');
+      _log('Found ' + botJobs.length + ' entries to be posted on slack.');
 
       let slack = new Slack();
       slack.setWebhook(process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA);
 
       botJobs.forEach((item, index) => {
-        _log('Processing item ' + (index + 1) + '...');
+        _log('Processing item ' + (index + 1) + ': ', item.title + ' / ' + item.company);
 
         slack.webhook({
           attachments: [
@@ -188,21 +188,25 @@ Q.when(deferred.promise).then(() => {
           }
 
           if (index + 1 === botJobs.length) {
-            deferredSlack.resolve();
+            deferredSlack.resolve('DONE');
           }
         });
         sleep(300);
       });
     } else if (!process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA) {
-      _log('ERROR: Enviroment variable "$LABS_SLACK_WEBHOOK_URL_DEVPARANA" is not defined. Aborting slack...');
-      deferredSlack.resolve();
+      deferredSlack.reject(new Error('ERROR: Enviroment variable "$LABS_SLACK_WEBHOOK_URL_DEVPARANA" is not defined. Aborting slack...'));
     } else {
-      _log('No new job opening found to send to slack.');
-      deferredSlack.resolve();
+      deferredSlack.resolve('No new job opening found to send to slack.');
     }
 //  /INTEGRATION WITH DEVPARANA SLACK -------------------------------------------------------------------------------------------
-    Q.when(deferredSlack.promise).then(() => {
-      _log('DONE');
+    Q.when(deferredSlack.promise).then(msg => {
+      _log(msg);
+      _log('-'.repeat(100));
+    }, err => {
+      _log('ERROR');
+      _log(err);
+      _log('-'.repeat(100));
+      process.exit(1);
     });
   } catch (err) {
     _log('ERROR: ', err);
