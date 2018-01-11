@@ -29,11 +29,14 @@ const keywords = [
   'frontend',
   'front-end',
 ];
+
+// blacklist certain words / expressions in title, to filter found Jobs
 const blacklist = [
   'torno',
   'cnc',
   'ppcp',
   'usinagem',
+  /venda?s/ig,
   /vendedor/ig,
   /servi[\xE7\xC7]os?/ig,
   /ve[\xCD\xED]culos?/ig,
