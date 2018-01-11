@@ -1,3 +1,5 @@
 node_modules/
 data/*
 out/*
+cron.log
+package-lock.json
