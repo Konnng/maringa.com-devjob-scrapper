@@ -115,8 +115,46 @@ Q.when(deferred.promise).then(() => {
       }
     ).then((response) => {
       const $ = cheerio.load(response);
+      const jobRawList = $('.table-vagas').find('.clickable-row ');
+      const foundResults = $('h1.text-center.is-primary.h2.my-4').text().trim() || '';
+      const totalFoundResults = foundResults ? Number(foundResults.replace(/\D/g, '')) : 0;
 
-      $('.table-vagas').find('.clickable-row ').each((i, job) => {
+      _log(`Found ${totalFoundResults} for the keyword "${keyword}" (raw)`);
+
+      if (!jobRawList.length) {
+        if (foundResults) {
+          if (totalFoundResults === 0) {
+            _log(`No job opportunities was found for keyword "${keyword}"`);
+            _log('-'.repeat(100));
+          } else {
+            _log('ERROR');
+            _log(`Error getting jobs for keyword "${keyword}" (total of jobs found: ${totalFoundResults})`);
+            _log(`Generated output in /tmp/${keyword}.html`);
+            _log('-'.repeat(100));
+
+            const tmp = path.join(__dirname, 'tmp');
+            if (!fs.existsSync(tmp)) {
+              fs.mkdirSync(tmp);
+            }
+            fs.writeFileSync(path.join(tmp, `${keyword}.html`), response);
+          }
+        } else {
+          _log('ERROR');
+          _log(`Error getting jobs for keyword "${keyword}"`);
+          _log(`Generated output in /tmp/${keyword}.html`);
+          _log('-'.repeat(100));
+
+          const tmp = path.join(__dirname, 'tmp');
+          if (!fs.existsSync(tmp)) {
+            fs.mkdirSync(tmp);
+          }
+          fs.writeFileSync(path.join(tmp, `${keyword}.html`), response);
+        }
+
+        return;
+      }
+
+      jobRawList.each((i, job) => {
         const $job = $(job);
 
         const title = $job.find('td').eq(1).find('p').eq(0).find('strong').text().trim().replace(/[\r\n]/g, '');
@@ -175,7 +213,7 @@ Q.when(deferred.promise).then(() => {
         return test.length === 0;
       });
 
-      _log(`Found ${foundJobs.length} job opportunities...`);
+      _log(`Found ${foundJobs.length} job opportunities for "${keyword}"...`);
       _log('-'.repeat(100));
 
       foundJobs.forEach((job) => {
