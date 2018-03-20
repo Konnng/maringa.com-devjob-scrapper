@@ -13,7 +13,7 @@ const Slack = require('slack-node');
 const Regex = require('xregexp');
 // /REQUIRES --------------------------------------------------------------------------------------
 
-const SLACK_WEBHOOK = process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA || '';
+const SLACK_WEBHOOK = process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA || 'https://hooks.slack.com/services/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';
 const dbFile = path.join(__dirname, 'data/db.json');
 if (!fs.existsSync(path.dirname(dbFile)) && !fs.mkdirsSync(path.dirname(dbFile))) {
   throw new Error('Error creating data dir.');
@@ -273,20 +273,17 @@ Q.when(deferredProcessing.promise).then(() => {
       let slack = new Slack();
       slack.setWebhook(SLACK_WEBHOOK);
 
+      const mainTitle = (botJobs.length > 1 ? 'Vagas de trabalho encontradas' : 'Vaga de trabalho encontrada') + ' em Maringa. Confira!'
+
       botJobs.forEach((item, index) => {
         _log(`Processing item ${(index + 1)}:`, `${item.title} / ${item.company}`);
 
-        slack.webhook({
-          attachments: [
-            {
-              title: `${item.title} / ${item.company}`,
-              title_link: item.url,
-              text: `Vaga:  ${item.title}\nEmpresa: ${item.company}\nData${moment(item.date).format('DD/MM/YYYY')}`,
-              color: '#7CD197',
-            },
-          ],
-          text: `Vaga de trabalho encontrada. Confira!\n\n${item.url}`,
-        }, (err, response) => {
+        const params = {
+          text: (index === 0 ? `${mainTitle} \n\n\n` : '') +
+            `*${item.title} / ${item.company}* - ${item.url}`,
+        };
+
+        slack.webhook(params, (err, response) => {
           if (err) {
             _log('ERROR: ', err);
             _log('ERROR: ', '-'.repeat(100));
