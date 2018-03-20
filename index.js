@@ -13,7 +13,7 @@ const Slack = require('slack-node');
 const Regex = require('xregexp');
 // /REQUIRES --------------------------------------------------------------------------------------
 
-const SLACK_WEBHOOK = process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA || 'https://hooks.slack.com/services/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';
+const SLACK_WEBHOOK = process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA || '';
 const dbFile = path.join(__dirname, 'data/db.json');
 if (!fs.existsSync(path.dirname(dbFile)) && !fs.mkdirsSync(path.dirname(dbFile))) {
   throw new Error('Error creating data dir.');
