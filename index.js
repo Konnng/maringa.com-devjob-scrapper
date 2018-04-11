@@ -36,12 +36,13 @@ const blacklist = [
   'cnc',
   'ppcp',
   'usinagem',
+  'bordado',
   /venda?s/ig,
   /vendedor/ig,
   /servi[\xE7\xC7]os?/ig,
   /ve[\xCD\xED]culos?/ig,
   /manuten[\xC7\xE7][\xC3\xE3]o/ig,
-  /neg[\xF3\xD3]cios?/ig,
+  /neg[\xF3\xD3]cios?/ig
   // NOTE: if you decide to use regular expression, don't forget the "ig" flags
 ]
 
