@@ -9,16 +9,28 @@ const path = require('path')
 const cheerio = require('cheerio')
 const sleep = require('system-sleep')
 const moment = require('moment')
-const Slack = require('slack-node')
 const Regex = require('xregexp')
+const { IncomingWebhook, WebClient } = require('@slack/client')
+
 // /REQUIRES --------------------------------------------------------------------------------------
 
 const SLACK_WEBHOOK = process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA || ''
+const SLACK_BOT_TOKEN = process.env.LABS_SLACK_BOT_VAGAS_TOKEN_DEVPARANA || ''
+
+if (!SLACK_WEBHOOK || !SLACK_BOT_TOKEN) {
+  _log('ERROR: SLACK_WEBHOOK or SLACK_BOT_TOKEN are undefined.')
+  _log('Aborting...')
+  process.exit(1)
+}
+
 const dbFile = path.join(__dirname, 'data/db.json')
 if (!fs.existsSync(path.dirname(dbFile)) && !fs.mkdirsSync(path.dirname(dbFile))) {
   throw new Error('Error creating data dir.')
 }
 const db = low(dbFile, { storage: lowDbFileAsync, writeOnChange: true })
+
+//const slackWebhook = new IncomingWebhook(SLACK_WEBHOOK)
+const slackWeb = new WebClient(SLACK_BOT_TOKEN)
 
 const scrapperUrlBase = 'http://empregos.maringa.com/'
 const keywords = [
@@ -96,7 +108,7 @@ Q.when(deferred.promise).then(() => {
   })
 
   keywords.forEach((keyword, index) => {
-    _log(`Looking for jobs with word "${keyword}`)
+    _log(`Looking for jobs with word "${keyword}"`)
 
     let foundJobs = []
 
@@ -115,7 +127,7 @@ Q.when(deferred.promise).then(() => {
       }
     ).then((response) => {
       const $ = cheerio.load(response)
-      const jobRawList = $('.table-vagas').find('.clickable-row ')
+      const jobRawList = $('#listaAnunciosHome').find('.card-anuncio')
       const foundResults = $('h1.text-center.is-primary.h2.my-4').text().trim() || ''
       const totalFoundResults = foundResults ? Number(foundResults.replace(/\D/g, '')) : 0
 
@@ -157,16 +169,17 @@ Q.when(deferred.promise).then(() => {
       jobRawList.each((i, job) => {
         const $job = $(job)
 
-        const title = $job.find('td').eq(1).find('p').eq(0).find('strong').text().trim().replace(/[\r\n]/g, '')
-        const company = $job.find('td').eq(1).find('p').eq(1).text().trim().replace(/empresa: /i, '')
+        const title = $job.find('.titulo').text().trim().replace(/[\r\n]/g, '')
+        const company = $job.find('.nome-empresa').length ? $job.find('.nome-empresa').text().trim().replace('Empresa: ', '').replace(/[\r\n]/g, '') : '(Confidencial)'
         const link = $job.data('href')
 
         // TODO: checar se existe flag de vaga preenchida no site
-        const isFilled = $job.find('td').eq(1).find('p').eq(0).find('.badge-success').length > 0
+        // const isFilled = $job.find('td').eq(1).find('p').eq(0).find('.badge-success').length > 0
+        const isFilled = false
         const dateProcessed = Date.now()
         const id = (link.match(/vaga-emprego\/(\d+)\//) || []).pop()
 
-        if (isNaN(id)) {
+        if (isNaN(id) || !title || !company) {
           return
         }
 
@@ -267,48 +280,55 @@ Q.when(deferredProcessing.promise).then(() => {
 
     sleep(1000)
 
-    if (SLACK_WEBHOOK && botJobs.length) {
+    if (botJobs.length) {
       _log(`Found ${botJobs.length} entries to be posted on slack.`)
 
-      let slack = new Slack()
-      slack.setWebhook(SLACK_WEBHOOK)
-
-      const mainTitle = (botJobs.length > 1 ? 'Vagas de trabalho encontradas' : 'Vaga de trabalho encontrada') + ' em *Maringá*. Confira!'
-      const slackQueue = botJobs.map((item, index) => {
-        return () => new Promise((resolve, reject) => {
+      const slackQueue = botJobs.slice().map((item, index) => {
+        return (thread) => new Promise((resolve, reject) => {
           _log(`Processing item ${(index + 1)}:`, `${item.title} / ${item.company}`)
 
+          const slackWebhook = new IncomingWebhook(SLACK_WEBHOOK)
           const params = {
-            text: (index === 0 ? `${mainTitle} \n\n\n` : '') +
-            `*${item.title} / ${item.company}* - ${item.url}`
+            text: `*${item.title} / ${item.company}* - ${item.url}`
           }
 
-          slack.webhook(params, (err, response) => {
+          if (thread) {
+            params.thread_ts = thread
+          }
+
+          slackWebhook.send(params, (err, res) => {
             if (err) {
-              _log('ERROR: ', err)
-              _log('ERROR: ', '-'.repeat(100))
+              throw err
               return reject(err)
             }
-            if (response.statusCode === 200) {
-              _log('Done posting item ' + (index + 1))
-              db.get('jobs').find({ id: item.id }).assign({ bot_processed: true }).value()
-              sleep(1000)
 
-              resolve(index)
-            } else {
-              reject(new Error('Error processing item ' + (index + 1) + ': ' + response.statusCode + ': ' + response.statusMessage))
-            }
+            _log('Done posting item ' + (index + 1))
+            db.get('jobs').find({ id: item.id }).assign({ bot_processed: true }).value()
+
+            sleep(1000)
+            resolve(index)
           })
         })
       })
 
-      Array.from(Array(slackQueue.length).keys()).reduce((promise, next) => {
-        return promise.then(() => slackQueue[next]()).catch(err => { throw err })
-      }, Promise.resolve())
+      _log(`${slackQueue.length} jobs ready to be posted`)
+      _log('Starting job thread')
 
-      deferredSlack.resolve('DONE')
-    } else if (!SLACK_WEBHOOK) {
-      deferredSlack.reject(new Error('ERROR: Enviroment variable "SLACK_WEBHOOK" is not defined. Aborting slack...'))
+      slackWeb.chat.postMessage({
+        text: (botJobs.length > 1 ? 'Vagas de trabalho encontradas' : 'Vaga de trabalho encontrada') + ' em *Maringá*. Confira!',
+        channel: '#vagas'
+      }).then(response => {
+        if (!response.ok) {
+          throw new Error(response.error)
+        }
+
+        const thread = response.ts
+
+        Array.from(Array(slackQueue.length).keys()).reduce((promise, next) => {
+          return promise.then(() => slackQueue[next](thread)).catch(err => { throw err })
+        }, Promise.resolve())
+
+      }).catch(err => deferredSlack.reject(err))
     } else {
       deferredSlack.resolve('No new job opening found to send to slack.')
     }

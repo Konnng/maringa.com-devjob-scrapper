@@ -10,18 +10,18 @@
   "author": "Konnng Agência Digital",
   "license": "MIT",
   "dependencies": {
+    "@slack/client": "^4.8.0",
     "cheerio": "^0.22.0",
     "ejs": "^2.5.2",
     "fs-extra": "^1.0.0",
-    "lowdb": "^0.14.0",
+    "lowdb": "0.14.0",
     "moment": "^2.17.1",
     "path": "^0.12.7",
     "q": "^1.4.1",
     "request": "^2.83.0",
     "request-promise": "^4.2.2",
-    "slack-node": "^0.1.8",
     "system-sleep": "^1.0.0-k",
-    "xregexp": "^4.0.0"
+    "xregexp": "^4.2.4"
   },
   "devDependencies": {
     "eslint": "^4.19.0",
