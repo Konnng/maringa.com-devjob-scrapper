@@ -69,6 +69,7 @@ let websiteToken = ''
 let websiteCookies = []
 
 const DateRegex = /((?:(?:[0-2]?\d{1})|(?:[3][01]{1}))[-:\/.](?:[0]?[1-9]|[1][012])[-:\/.](?:(?:[1]{1}\d{1}\d{1}\d{1})|(?:[2]{1}\d{3})))(?![\d])/;
+const SlackChannel = '#vagas'
 
 request({
   uri: scrapperUrlBase,
@@ -194,10 +195,20 @@ Q.when(deferred.promise).then(() => {
           date = date.getTime()
         }
 
+        // try to find row in database, by ID
         row = db.get('jobs').find({ id }).value()
         if (row) {
+          // if job is already filled, update record
           if (!row.is_filled && isFilled) {
             db.get('jobs').find({ id }).assign({ is_filed: isFilled }).value()
+          }
+          // if they changed job date (as if it a new job offer), update record and put in queue to process
+          if (date !== row.date) {
+            db.get('jobs').find({ id }).assign({ 
+              date,
+              bot_processed: false,
+              date_processed: dateProcessed
+            }).value()
           }
 
           return
@@ -299,7 +310,7 @@ Q.when(deferredProcessing.promise).then(() => {
           slackWebhook.send(params, (err, res) => {
             if (err) {
               throw err
-              return reject(err)
+              // return reject(err)
             }
 
             _log('Done posting item ' + (index + 1))
@@ -316,7 +327,7 @@ Q.when(deferredProcessing.promise).then(() => {
 
       slackWeb.chat.postMessage({
         text: (botJobs.length > 1 ? 'Vagas de trabalho encontradas' : 'Vaga de trabalho encontrada') + ' em *Maringá*. Confira!',
-        channel: '#vagas'
+        channel: SlackChannel,
       }).then(response => {
         if (!response.ok) {
           throw new Error(response.error)
