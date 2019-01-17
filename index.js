@@ -68,6 +68,8 @@ let keywordsProcessed = 0
 let websiteToken = ''
 let websiteCookies = []
 
+const DateRegex = /((?:(?:[0-2]?\d{1})|(?:[3][01]{1}))[-:\/.](?:[0]?[1-9]|[1][012])[-:\/.](?:(?:[1]{1}\d{1}\d{1}\d{1})|(?:[2]{1}\d{3})))(?![\d])/;
+
 request({
   uri: scrapperUrlBase,
   transform: (body, response) => {
@@ -175,7 +177,7 @@ Q.when(deferred.promise).then(() => {
 
         // TODO: checar se existe flag de vaga preenchida no site
         // const isFilled = $job.find('td').eq(1).find('p').eq(0).find('.badge-success').length > 0
-        const isFilled = false
+        const isFilled = title.match(/\bpreenchida\b/i) || false
         const dateProcessed = Date.now()
         const id = (link.match(/vaga-emprego\/(\d+)\//) || []).pop()
 
@@ -184,15 +186,13 @@ Q.when(deferred.promise).then(() => {
         }
 
         let row = null
-        let date = $job.find('td').eq(2).find('p').eq(0).text().trim()
+        let meta = $job.find('.meta-box').eq(0).text().trim()
+        let date = (DateRegex.exec(meta) || []).shift()
 
-        if (date.toLowerCase() === 'hoje') {
-          date = new Date()
-        } else {
-          date = new Date(date.toString().split('/').reverse().join('-'))
+        if (date) {
+          date = new Date(date.split('/').reverse().join('-') + ' 00:00:00')
+          date = date.getTime()
         }
-        date.setHours(0, 0, 0, 0)
-        date = date.getTime()
 
         row = db.get('jobs').find({ id }).value()
         if (row) {
@@ -270,7 +270,7 @@ Q.when(deferredProcessing.promise).then(() => {
 
     fs.writeFileSync(outputFile, result)
 
- // INTEGRATION WITH DEVPARANA SLACK --------------------------------------------------------------------------------------------
+    // INTEGRATION WITH DEVPARANA SLACK --------------------------------------------------------------------------------------------
     _log('Done generating HTML file: ', outputFile)
     _log('Cheking for new job entries to send to Slack...')
 
@@ -352,6 +352,6 @@ Q.when(deferredProcessing.promise).then(() => {
   process.exit(1)
 })
 
-function _log(...args) {
+function _log (...args) {
   console.log(...[].concat([`[${moment().format('DD/MM/YYYY HH:mm:ss')}] =>`], Array.from(args) || []))
 }
