@@ -16,6 +16,7 @@ const { IncomingWebhook, WebClient } = require('@slack/client')
 
 const SLACK_WEBHOOK = process.env.LABS_SLACK_WEBHOOK_URL_DEVPARANA || ''
 const SLACK_BOT_TOKEN = process.env.LABS_SLACK_BOT_VAGAS_TOKEN_DEVPARANA || ''
+const SLACK_CHANNEL = '#vagas'
 
 if (!SLACK_WEBHOOK || !SLACK_BOT_TOKEN) {
   _log('ERROR: SLACK_WEBHOOK or SLACK_BOT_TOKEN are undefined.')
@@ -29,10 +30,9 @@ if (!fs.existsSync(path.dirname(dbFile)) && !fs.mkdirsSync(path.dirname(dbFile))
 }
 const db = low(dbFile, { storage: lowDbFileAsync, writeOnChange: true })
 
-//const slackWebhook = new IncomingWebhook(SLACK_WEBHOOK)
 const slackWeb = new WebClient(SLACK_BOT_TOKEN)
 
-const scrapperUrlBase = 'http://empregos.maringa.com/'
+const scrapperUrlBase = 'https://empregos.maringa.com/'
 const keywords = [
   'desenvolvedor',
   'programador',
@@ -69,7 +69,6 @@ let websiteToken = ''
 let websiteCookies = []
 
 const DateRegex = /((?:(?:[0-2]?\d{1})|(?:[3][01]{1}))[-:\/.](?:[0]?[1-9]|[1][012])[-:\/.](?:(?:[1]{1}\d{1}\d{1}\d{1})|(?:[2]{1}\d{3})))(?![\d])/;
-const SlackChannel = '#vagas'
 
 request({
   uri: scrapperUrlBase,
@@ -172,13 +171,13 @@ Q.when(deferred.promise).then(() => {
       jobRawList.each((i, job) => {
         const $job = $(job)
 
-        const title = $job.find('.titulo').text().trim().replace(/[\r\n]/g, '')
+        const title = $job.find('.titulo').text().trim().replace(/[\r\n]/g, '').replace('Vaga preenchida', '').trim()
         const company = $job.find('.nome-empresa').length ? $job.find('.nome-empresa').text().trim().replace('Empresa: ', '').replace(/[\r\n]/g, '') : '(Confidencial)'
         const link = $job.data('href')
 
         // TODO: checar se existe flag de vaga preenchida no site
         // const isFilled = $job.find('td').eq(1).find('p').eq(0).find('.badge-success').length > 0
-        const isFilled = title.match(/\bpreenchida\b/i) || false
+        const isFilled = ($job.find('.titulo').text().trim().match(/\bpreenchida\b/i) || []).length > 0
         const dateProcessed = Date.now()
         const id = (link.match(/vaga-emprego\/(\d+)\//) || []).pop()
 
@@ -200,7 +199,7 @@ Q.when(deferred.promise).then(() => {
         if (row) {
           // if job is already filled, update record
           if (!row.is_filled && isFilled) {
-            db.get('jobs').find({ id }).assign({ is_filed: isFilled }).value()
+            db.get('jobs').find({ id }).assign({ is_filled: isFilled }).value()
           }
           // if they changed job date (as if it a new job offer), update record and put in queue to process
           if (date !== row.date) {
@@ -327,7 +326,7 @@ Q.when(deferredProcessing.promise).then(() => {
 
       slackWeb.chat.postMessage({
         text: (botJobs.length > 1 ? 'Vagas de trabalho encontradas' : 'Vaga de trabalho encontrada') + ' em *Maringá*. Confira!',
-        channel: SlackChannel,
+        channel: SLACK_CHANNEL
       }).then(response => {
         if (!response.ok) {
           throw new Error(response.error)
