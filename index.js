@@ -39,7 +39,8 @@ const keywords = [
   'web',
   'php',
   'frontend',
-  'front-end'
+  'front-end',
+  'front end'
 ]
 
 // blacklist certain words / expressions in title, to filter found Jobs
@@ -129,8 +130,8 @@ Q.when(deferred.promise).then(() => {
       }
     ).then((response) => {
       const $ = cheerio.load(response)
-      const jobRawList = $('#listaAnunciosHome').find('.card-anuncio')
-      const foundResults = $('h1.text-center.is-primary.h2.my-4').text().trim() || ''
+      const jobRawList = $('#listaAnunciosHome .card-anuncio')
+      const foundResults = $('h1.text-center.is-primary.my-4').text().trim() || ''
       const totalFoundResults = foundResults ? Number(foundResults.replace(/\D/g, '')) : 0
 
       _log(`Found ${totalFoundResults} for the keyword "${keyword}" (raw)`)
@@ -171,7 +172,7 @@ Q.when(deferred.promise).then(() => {
       jobRawList.each((i, job) => {
         const $job = $(job)
 
-        const title = $job.find('.titulo').text().trim().replace(/[\r\n]/g, '').replace('Vaga preenchida', '').trim()
+        const title = $job.find('.col-9.col-md-10 > .row > .col-12.col-md-10').contents().get(0).nodeValue.trim().replace(/[\r\n]/g, '').replace('Vaga preenchida', '').trim()
         const company = $job.find('.nome-empresa').length ? $job.find('.nome-empresa').text().trim().replace('Empresa: ', '').replace(/[\r\n]/g, '') : '(Confidencial)'
         const link = $job.data('href')
 
@@ -236,7 +237,7 @@ Q.when(deferred.promise).then(() => {
         return test.length === 0
       })
 
-      _log(`Found ${foundJobs.length} job opportunities for "${keyword}"...`)
+      _log(`Found ${foundJobs.length} new job opportunities for "${keyword}"...`)
       _log('-'.repeat(100))
 
       foundJobs.forEach((job) => {
@@ -293,11 +294,12 @@ Q.when(deferredProcessing.promise).then(() => {
     if (botJobs.length) {
       _log(`Found ${botJobs.length} entries to be posted on slack.`)
 
+      const slackWebhook = new IncomingWebhook(SLACK_WEBHOOK)
+
       const slackQueue = botJobs.slice().map((item, index) => {
         return (thread) => new Promise((resolve, reject) => {
           _log(`Processing item ${(index + 1)}:`, `${item.title} / ${item.company}`)
 
-          const slackWebhook = new IncomingWebhook(SLACK_WEBHOOK)
           const params = {
             text: `*${item.title} / ${item.company}* - ${item.url}`
           }
