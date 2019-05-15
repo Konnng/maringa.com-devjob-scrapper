@@ -19,7 +19,7 @@ const SLACK_BOT_TOKEN = process.env.LABS_SLACK_BOT_VAGAS_TOKEN_DEVPARANA || ''
 const SLACK_CHANNEL = '#vagas'
 
 if (!SLACK_WEBHOOK || !SLACK_BOT_TOKEN) {
-  _log('ERROR: SLACK_WEBHOOK or SLACK_BOT_TOKEN are undefined.')
+  _log('ERROR: SLACK_WEBHOOK or SLACK_BOT_TOKEN environment variables are undefined.')
   _log('Aborting...')
   process.exit(1)
 }
@@ -173,7 +173,7 @@ Q.when(deferred.promise).then(() => {
         const $job = $(job)
 
         const title = $job.find('.col-9.col-md-10 > .row > .col-12.col-md-10').contents().get(0).nodeValue.trim().replace(/[\r\n]/g, '').replace('Vaga preenchida', '').trim()
-        const company = $job.find('.nome-empresa').length ? $job.find('.nome-empresa').text().trim().replace('Empresa: ', '').replace(/[\r\n]/g, '') : '(Confidencial)'
+        const company = $job.find('.card-text.text-muted:not(.descricao)').length ? $job.find('.card-text.text-muted:not(.descricao)').text().trim().replace('Empresa: ', '').replace(/[\r\n]/g, '') : '(Confidencial)'
         const link = $job.data('href')
 
         // TODO: checar se existe flag de vaga preenchida no site
