@@ -131,10 +131,13 @@ Q.when(deferred.promise).then(() => {
     ).then((response) => {
       const $ = cheerio.load(response)
       const jobRawList = $('#listaAnunciosHome .card-anuncio')
-      const foundResults = $('h1.text-center.is-primary.my-4').text().trim() || ''
-      const totalFoundResults = foundResults ? Number(foundResults.replace(/\D/g, '')) : 0
+      const foundResults = ($('h1.text-center.is-primary.my-4').text() || '').replace(/\t|\r\n|\n|\r/gm, '').trim()
+      const totalFoundResults = foundResults.length ? Number(foundResults.replace(/\D/g, '')) : 0
 
       _log(`Found ${totalFoundResults} for the keyword "${keyword}" (raw)`)
+
+      const t = path.join(__dirname, 'tmp')
+      fs.writeFileSync(path.join(t, `${keyword}.html`), response)
 
       if (!jobRawList.length) {
         if (foundResults) {
@@ -172,13 +175,21 @@ Q.when(deferred.promise).then(() => {
       jobRawList.each((i, job) => {
         const $job = $(job)
 
-        const title = $job.find('.col-9.col-md-10 > .row > .col-12.col-md-10').contents().get(0).nodeValue.trim().replace(/[\r\n]/g, '').replace('Vaga preenchida', '').trim()
-        const company = $job.find('.card-text.text-muted:not(.descricao)').length ? $job.find('.card-text.text-muted:not(.descricao)').text().trim().replace('Empresa: ', '').replace(/[\r\n]/g, '') : '(Confidencial)'
+        const $descriptionBlock = $job.find('.row > .col-9.col-md-10 > .row > .col-12');
+
+        if (!$descriptionBlock.length) {
+          _log('ERROR')
+          _log(`Error getting job container #${i} for "${keyword}"`)
+          return
+        }
+
+        const title = $descriptionBlock.contents().get(0).nodeValue.trim().replace(/[\r\n]/g, '').replace('Vaga preenchida', '').trim()
+        const company = $descriptionBlock.find('.card-text.text-muted:not(.descricao)').length ? $descriptionBlock.find('.card-text.text-muted:not(.descricao)').text().trim().replace('Empresa: ', '').replace(/[\r\n]/g, '') : '(Confidencial)'
         const link = $job.data('href')
 
         // TODO: checar se existe flag de vaga preenchida no site
         // const isFilled = $job.find('td').eq(1).find('p').eq(0).find('.badge-success').length > 0
-        const isFilled = ($job.find('.titulo').text().trim().match(/\bpreenchida\b/i) || []).length > 0
+        const isFilled = ($descriptionBlock.find('.titulo').text().trim().match(/\bpreenchida\b/i) || []).length > 0
         const dateProcessed = Date.now()
         const id = (link.match(/vaga-emprego\/(\d+)\//) || []).pop()
 
@@ -187,7 +198,7 @@ Q.when(deferred.promise).then(() => {
         }
 
         let row = null
-        let meta = $job.find('.meta-box').eq(0).text().trim()
+        let meta = $descriptionBlock.find('.meta-box').eq(0).text().trim()
         let date = (DateRegex.exec(meta) || []).shift()
 
         if (date) {
