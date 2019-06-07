@@ -213,9 +213,13 @@ Q.when(deferred.promise).then(() => {
           if (!row.is_filled && isFilled) {
             db.get('jobs').find({ id }).assign({ is_filled: isFilled }).value()
           }
+          // update company info
+          if (company !== row.company) {
+            db.get('jobs').find({ id }).assign({ company }).value()
+          }
           // if they changed job date (as if it a new job offer), update record and put in queue to process
           if (date !== row.date) {
-            db.get('jobs').find({ id }).assign({ 
+            db.get('jobs').find({ id }).assign({
               date,
               bot_processed: false,
               date_processed: dateProcessed
